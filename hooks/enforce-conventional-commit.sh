@@ -20,10 +20,14 @@ COMMAND=$(json_get "$INPUT" command)
 echo "$COMMAND" | grep -qE 'git commit' || exit 0
 
 # Extract the FIRST commit message (the SUBJECT). Match -m, -am/-vam (glued flags), --message=,
-# --message <msg>. The leading `[^"']*` (was greedy `.*`) cannot cross the first quote, so the match
-# anchors to the FIRST -m: the OLD greedy `.*` matched the LAST -m, so a valid `fix: subj` first -m
-# followed by a non-conventional `-m "body"` was false-DENIED (a real multi-paragraph-commit footgun).
-MSG=$(echo "$COMMAND" | sed -nE "s/[^\"']*(-m|--message=?|-[a-z]*m)[[:space:]]*[\"']([^\"']*)[\"'].*/\2/p" | head -1 || echo "")
+# --message <msg>. grep -oE pulls out ONLY the flag+quoted-value tokens (never surrounding text), so a
+# quoted-value prefix flag (--author="X" / --date="..." / -c "hash") BEFORE -m is not captured and its
+# text cannot leak into the message; the FIRST token is the subject. History: greedy `.*` grabbed the
+# LAST -m and false-DENIED multi-paragraph commits; a `[^"']*` sed then leaked the un-crossed prefix of
+# an --author-style flag into the message and false-DENIED THOSE — both fixed here. (grep to a var with
+# `|| true` + sed line-1, not `grep|head`, to stay SIGPIPE-safe under `set -o pipefail`.)
+mflags=$(printf '%s' "$COMMAND" | grep -oE '(-m|--message=?|-[a-z]*m)[[:space:]]*("([^"]*)"|'"'"'([^'"'"']*)'"'"')' || true)
+MSG=$(printf '%s\n' "$mflags" | sed -nE '1{s/^(-m|--message=?|-[a-z]*m)[[:space:]]*"([^"]*)".*/\2/; s/^(-m|--message=?|-[a-z]*m)[[:space:]]*'"'"'([^'"'"']*)'"'"'.*/\2/; p;}')
 
 # If using heredoc/cat style, extract first line
 if [ -z "$MSG" ]; then
