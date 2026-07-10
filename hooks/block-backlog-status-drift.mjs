@@ -123,7 +123,20 @@ try {
     // convention: `### ✅ <name> · … — <verdict>` carries the verdict inline), NOT the whole block —
     // a historical "DoD pending(LEAD)" step in a card's log body must not override a header that now
     // reads DoD-VERIFIED.
-    const bad = headers.filter((h) => {
+    // ANCHOR-EXCLUSION (rule-8: judge the ACTION, not incidental payload text): an Edit that INSERTS a
+    // new card uses a neighbouring PRE-EXISTING card's header line as its old_string/new_string
+    // positioning anchor. That anchor header is NOT a card archived by THIS edit, but it appears in
+    // new_string -- and if the anchor TRUNCATED the header (dropping its "ARCHIVED / DoD-VERIFIED" tail)
+    // this gate would misread it as a brand-new DoD-less card and deny the whole write, naming the WRONG
+    // card. A header line that ALSO appears byte-identically in old_string is a positioning anchor ->
+    // exclude it. A genuinely-new archived card can never be in old_string, so the gate's teeth are
+    // unchanged for real archives.
+    const anchorHeaders = new Set();
+    const collectOld = (s) => String(s).split('\n').forEach((l) => { if (/^###\s+\S/.test(l)) anchorHeaders.add(l.trim()); });
+    if (ti.old_string !== undefined) collectOld(ti.old_string);
+    if (Array.isArray(ti.edits)) for (const e of ti.edits) if (e && e.old_string !== undefined) collectOld(e.old_string);
+    const newHeaders = headers.filter((h) => !anchorHeaders.has(h.trim()));
+    const bad = newHeaders.filter((h) => {
       if (NO_DOD_NEEDED.some((re) => re.test(h))) return false; // WONTFIX/FAKE/STALE/PHANTOM/… or no-DoD → exempt
       if (DOD_PENDING.some((re) => re.test(h))) return true;    // header says pending → not done (override)
       return !DOD_VERIFIED.some((re) => re.test(h));            // verified→ok; neither verified nor exempt→the HOLE→deny
