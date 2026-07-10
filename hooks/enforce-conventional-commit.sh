@@ -19,8 +19,11 @@ COMMAND=$(json_get "$INPUT" command)
 # Only check git commit (not amend)
 echo "$COMMAND" | grep -qE 'git commit' || exit 0
 
-# Extract the commit message. Match -m, -am/-vam (glued flags), --message=, --message <msg>.
-MSG=$(echo "$COMMAND" | sed -nE "s/.*(-m|--message=?|-[a-z]*m)[[:space:]]*[\"']([^\"']*)[\"'].*/\2/p" | head -1 || echo "")
+# Extract the FIRST commit message (the SUBJECT). Match -m, -am/-vam (glued flags), --message=,
+# --message <msg>. The leading `[^"']*` (was greedy `.*`) cannot cross the first quote, so the match
+# anchors to the FIRST -m: the OLD greedy `.*` matched the LAST -m, so a valid `fix: subj` first -m
+# followed by a non-conventional `-m "body"` was false-DENIED (a real multi-paragraph-commit footgun).
+MSG=$(echo "$COMMAND" | sed -nE "s/[^\"']*(-m|--message=?|-[a-z]*m)[[:space:]]*[\"']([^\"']*)[\"'].*/\2/p" | head -1 || echo "")
 
 # If using heredoc/cat style, extract first line
 if [ -z "$MSG" ]; then
