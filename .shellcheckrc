@@ -10,3 +10,4 @@ disable=SC2019  # A-Z range: ASCII-only by design
 disable=SC2018  # a-z range: ASCII-only by design
 disable=SC2126  # grep|wc -l: fine for these one-shot counts
 disable=SC2001  # sed-vs-${//}: sed substitution is intentional
+disable=SC2002  # useless-cat: 'cat file | cmd' is a deliberate readable idiom (stdin-not-path-arg for Windows node); style-only, flagged by the hosted shellcheck 0.9.0 but not 0.11.0 — disabled for local/hosted version parity
